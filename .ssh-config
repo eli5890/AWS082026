@@ -1,0 +1,12 @@
+Host aws-sis
+    HostName ssh.ehirshman.com
+    User ubuntu
+    IdentityFile C:/projects/sis-aws/my-key.pem
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null
+    # Route through Cloudflare Tunnel — bypasses public port 22 entirely.
+    # cloudflared.exe opens a TCP stream over HTTPS to Cloudflare's edge,
+    # which proxies it to the EC2 instance via the tunnel daemon there.
+    ProxyCommand /c/Users/user/bin/cloudflared.exe access ssh --hostname %h
+    ServerAliveInterval 30
+    ConnectTimeout 30

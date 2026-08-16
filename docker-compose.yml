@@ -1,0 +1,51 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: sis
+      POSTGRES_USER: sis
+      POSTGRES_PASSWORD: sis
+    ports: ['5432:5432']
+    volumes:
+      - sis_pg_data:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U sis']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgresql://sis:sis@postgres:5432/sis
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me-in-prod-please-and-thank-you}
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3000
+      BASE_URL: http://localhost:5173
+      PUBLIC_QUOTE_SECRET: ${PUBLIC_QUOTE_SECRET:-dev-secret}
+      # External services (optional locally)
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_SMS_FROM: ${TWILIO_SMS_FROM:-}
+      TWILIO_WHATSAPP_FROM: ${TWILIO_WHATSAPP_FROM:-}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LINET_LOGIN_ID: ${LINET_LOGIN_ID:-}
+      LINET_LOGIN_HASH: ${LINET_LOGIN_HASH:-}
+      LINET_COMPANY_ID: ${LINET_COMPANY_ID:-}
+      AWS_REGION: ${AWS_REGION:-eu-central-1}
+      S3_BUCKET: ${S3_BUCKET:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+    ports: ['3001:3001']
+    restart: unless-stopped
+
+volumes:
+  sis_pg_data:

@@ -1,0 +1,104 @@
+{
+    admin off
+    email OFFICE@ehirshman.com
+
+    # On-demand TLS: Caddy asks the backend before issuing certs. The
+    # backend approves: (a) verified tenant custom_domains and
+    # (b) any *.sistem.ehirshman.com subdomain (per-tenant SaaS subdomains).
+    on_demand_tls {
+        ask http://127.0.0.1:3001/api/functions/customDomain
+    }
+}
+
+# Bare-IP HTTP — anyone hitting http://16.171.169.154 (or just the IP)
+# gets redirected to the canonical domain. Keeps the platform URL clean
+# and tells Google there's one canonical address.
+16.171.169.154, ec2-16-171-169-154.eu-north-1.compute.amazonaws.com {
+    redir https://sistem.ehirshman.com{uri} 308
+}
+
+# Fallback HTTP for anything unmatched (shouldn't happen often).
+:80 {
+    encode zstd gzip
+    root * /var/www/sis
+
+    @api path /api/* /health
+    handle @api {
+        reverse_proxy 127.0.0.1:3001 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+        }
+    }
+    handle {
+        try_files {path} /index.html
+        file_server
+    }
+
+    header {
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        X-Frame-Options "SAMEORIGIN"
+    }
+}
+
+# Platform domain + wildcard subdomains for tenants.
+# Caddy issues a per-host Let's Encrypt cert for sistem.ehirshman.com
+# directly, and on-demand certs for *.sistem.ehirshman.com via the
+# ask endpoint (which we'll update to whitelist that suffix).
+sistem.ehirshman.com, *.sistem.ehirshman.com {
+    tls {
+        on_demand
+    }
+
+    encode zstd gzip
+    root * /var/www/sis
+
+    @api path /api/* /health
+    handle @api {
+        reverse_proxy 127.0.0.1:3001 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+        }
+    }
+    handle {
+        try_files {path} /index.html
+        file_server
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        X-Frame-Options "SAMEORIGIN"
+    }
+}
+
+# Catch-all HTTPS for verified customer custom_domains
+# (e.g. crm.acmecorp.com → on-demand cert via ask endpoint).
+:443 {
+    tls {
+        on_demand
+    }
+
+    encode zstd gzip
+    root * /var/www/sis
+
+    @api path /api/* /health
+    handle @api {
+        reverse_proxy 127.0.0.1:3001 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+        }
+    }
+    handle {
+        try_files {path} /index.html
+        file_server
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        X-Frame-Options "SAMEORIGIN"
+    }
+}
